@@ -1,0 +1,111 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Song Popularity Predictor</title>
+  <style>
+    body { font-family: Arial, sans-serif; margin: 20px; background:#f4f4f4; }
+    .container{ background:#fff;padding:30px;border-radius:8px;box-shadow:0 2px 6px rgba(0,0,0,0.08);max-width:640px;margin:20px auto; }
+    h1{ text-align:center;color:#333;margin-bottom:20px;}
+    label{display:block;margin:10px 0 6px;font-weight:600;}
+    input[type=number]{width:100%;padding:10px;border:1px solid #ddd;border-radius:6px;}
+    button{background:#4CAF50;color:#fff;padding:12px;border:none;border-radius:6px;cursor:pointer;margin-top:16px;width:100%;}
+    button:hover{opacity:0.95;}
+    .result{margin-top:20px;padding:14px;background:#eef2f4;border-radius:6px;text-align:center;font-weight:700;}
+    .error{color:#900;margin-top:12px;text-align:center;}
+    .small{font-size:0.9rem;color:#666;margin-top:8px;text-align:center;}
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>Song Popularity Predictor</h1>
+
+    <!-- AJAX form (preferred) -->
+    <form id="predictForm" onsubmit="return false;">
+      <label for="track_duration_ms">Track Duration (ms)</label>
+      <input type="number" id="track_duration_ms" name="track_duration_ms" required value="210000">
+
+      <label for="album_total_tracks">Album Total Tracks</label>
+      <input type="number" id="album_total_tracks" name="album_total_tracks" required value="12">
+
+      <label for="artist_popularity">Artist Popularity (0-100)</label>
+      <input type="number" id="artist_popularity" name="artist_popularity" min="0" max="100" required value="75">
+
+      <label for="artist_followers">Artist Followers</label>
+      <input type="number" id="artist_followers" name="artist_followers" required value="1000000">
+
+      <button id="predictBtn" type="button">Predict Popularity</button>
+    </form>
+
+    <div id="predictionResult" class="result" style="display:none;"></div>
+    <div id="error" class="error" style="display:none;"></div>
+
+    <div class="small">This page calls the server endpoint <code>/api/predict</code>. If that fails, you can submit the form to <code>/predict</code> (page will reload).</div>
+
+    <hr style="margin-top:22px;">
+
+    <!-- Fallback simple form submit (non-AJAX) -->
+    <form action="/predict" method="POST" style="margin-top:12px;">
+      <input type="hidden" name="track_duration_ms" id="hidden_duration">
+      <input type="hidden" name="album_total_tracks" id="hidden_tracks">
+      <input type="hidden" name="artist_popularity" id="hidden_pop">
+      <input type="hidden" name="artist_followers" id="hidden_followers">
+      <button type="submit" style="background:#2b8bda;margin-top:8px;">Or submit via page reload (fallback)</button>
+    </form>
+  </div>
+
+  <script>
+    const predictBtn = document.getElementById("predictBtn");
+    const resultBox = document.getElementById("predictionResult");
+    const errorBox = document.getElementById("error");
+
+    function getFormValues() {
+      return {
+        track_duration_ms: parseFloat(document.getElementById("track_duration_ms").value),
+        album_total_tracks: parseInt(document.getElementById("album_total_tracks").value),
+        artist_popularity: parseFloat(document.getElementById("artist_popularity").value),
+        artist_followers: parseInt(document.getElementById("artist_followers").value),
+      };
+    }
+
+    predictBtn.addEventListener("click", async () => {
+      resultBox.style.display = "none";
+      errorBox.style.display = "none";
+      predictBtn.disabled = true;
+      predictBtn.textContent = "Predicting...";
+
+      const payload = getFormValues();
+
+      // Also put these into the hidden fallback form so fallback works too
+      document.getElementById("hidden_duration").value = payload.track_duration_ms;
+      document.getElementById("hidden_tracks").value = payload.album_total_tracks;
+      document.getElementById("hidden_pop").value = payload.artist_popularity;
+      document.getElementById("hidden_followers").value = payload.artist_followers;
+
+      try {
+        const resp = await fetch("/api/predict", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(payload)
+        });
+
+        if (!resp.ok) {
+          const err = await resp.json().catch(()=>({error: "Unknown error"}));
+          throw new Error(err.error || `${resp.status} ${resp.statusText}`);
+        }
+
+        const data = await resp.json();
+        resultBox.style.display = "block";
+        resultBox.textContent = `Predicted Popularity: ${data.prediction}`;
+      } catch (err) {
+        errorBox.style.display = "block";
+        errorBox.textContent = `Prediction failed: ${err.message}`;
+      } finally {
+        predictBtn.disabled = false;
+        predictBtn.textContent = "Predict Popularity";
+      }
+    });
+  </script>
+</body>
+</html>
